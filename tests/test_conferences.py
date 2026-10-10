@@ -21,6 +21,7 @@ from jalert.state import Store
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
 FAST = CONFIG["conferences"]["venues"][0]
+FAST = {k: v for k, v in FAST.items() if k != "sources"}
 LOG = logging.getLogger("tests")
 
 
@@ -44,7 +45,7 @@ class MetadataTests(unittest.TestCase):
         client = Mock(cfg={"page_size": 1, "max_pages": 3, "rescan_years": 0})
         def hit(key, venue, title):
             return {"info": {"key": key, "venue": venue, "type": "Conference and Workshop Papers", "year": str(date.today().year), "title": title, "authors": {"author": {"text": "A Author"}}}}
-        client.get.side_effect = [
+        client.dblp_page.side_effect = [
             {"result": {"hits": {"@total": "3", "hit": [hit("conf/fast/a", "FAST", "NAND flash")]}}},
             {"result": {"hits": {"@total": "3", "hit": [hit("conf/fake/a", "FAST", "SSD controller")]}}},
             {"result": {"hits": {"@total": "3", "hit": [hit("conf/fast/b", "FAST Workshops", "SSD firmware")]}}}]
@@ -52,7 +53,7 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].date, "")
         self.assertEqual(items[0].authors, ["A Author"])
-        self.assertIn("f=2", client.get.call_args.args[0])
+        self.assertEqual(client.dblp_page.call_args.args[0]["f"], 2)
 
     def test_crossref_does_not_invent_day(self):
         venue = dict(FAST, crossref_container_titles=["FAST"])
@@ -113,7 +114,7 @@ class MetadataTests(unittest.TestCase):
 
     def test_pagination_limit_is_not_empty_success(self):
         client = Mock(cfg={'page_size': 1, 'max_pages': 1, 'rescan_years': 0})
-        client.get.return_value = {'result': {'hits': {'@total': '10', 'hit': []}}}
+        client.dblp_page.return_value = {'result': {'hits': {'@total': '10', 'hit': []}}}
         with self.assertRaisesRegex(ValueError, 'pagination cap'):
             dblp(client, FAST, '2025-01-01', False, LOG)
 

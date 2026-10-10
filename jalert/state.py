@@ -95,7 +95,7 @@ class Store:
 
     def complete_scans(self, statuses):
         for status in statuses:
-            if status["ok"] and status["items"]:
+            if status["ok"] and status["items"] and status.get("complete", True):
                 self.conn.execute("INSERT OR REPLACE INTO conference_scans VALUES (?, ?, ?)",
                     (status["journal"], status["source"], datetime.now().isoformat()))
         self.conn.commit()

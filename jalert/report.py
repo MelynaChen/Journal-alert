@@ -10,6 +10,25 @@ from .score import TIER_TITLES, tier_of, balance_conferences
 TIER_ORDER = ["must_read", "worth_reading", "other"]
 
 
+def research_labels(cfg):
+    research = cfg.get("research", {})
+    if research.get("enabled", False):
+        return [category["label"] for category in research.get("categories", [])]
+    return [k.get("label", "") for k in cfg.get("keywords", [])]
+
+
+def report_groups(entries, cfg):
+    research = cfg.get("research", {})
+    if not research.get("enabled", False):
+        return [(TIER_TITLES[tier], [e for e in entries if tier_of(e["scored"].score, cfg.get("tiers", {})) == tier]) for tier in TIER_ORDER]
+    groups = [(c["id"], c["label"]) for c in research.get("categories", [])]
+    ids = {cid for cid, _ in groups}
+    result = [(label, [e for e in entries if getattr(e["scored"], "category", "") == cid]) for cid, label in groups]
+    # Legacy snapshots carry no topic metadata; render them without rescoring or duplicating.
+    result.append(("历史记录（未分类）", [e for e in entries if getattr(e["scored"], "category", "") not in ids]))
+    return result
+
+
 def _fmt_date(value: str) -> str:
     """Elsevier-style feeds stamp the *issue* date, which can be in the future."""
     if not value:
@@ -60,9 +79,10 @@ def _frontmatter(
     Lists are emitted with ``json.dumps`` - JSON is a subset of YAML, so quoting
     stays correct even when a keyword label contains a colon or a quote.
     """
-    topics = [k.get("label", "") for k in cfg.get("keywords", [])]
-    journals = {s["journal"] for s in statuses}
-    failed = [s for s in statuses if not s["ok"]]
+    topics = research_labels(cfg)
+    journals = {s["journal"] for s in statuses if s.get("paper_type") != "conference"}
+    conferences = {s["journal"] for s in statuses if s.get("paper_type") == "conference"}
+    failed = [s for s in statuses if not s["ok"] and not s.get("unavailable")]
     return [
         "---",
         f"date: {day}",
@@ -76,7 +96,9 @@ def _frontmatter(
         f"worth_reading: {counts['worth_reading']}",
         f"other: {counts['other']}",
         f"journals: {len(journals)}",
+        f"conferences: {len(conferences)}",
         f"sources_failed: {len(failed)}",
+        f"sources_unavailable: {sum(bool(s.get('unavailable')) for s in statuses)}",
         f"topics: {json.dumps(topics, ensure_ascii=False)}",
         "tags: [journal-alert]",
         "---",
@@ -86,7 +108,9 @@ def _frontmatter(
 
 def _source_status_section(statuses: list[dict], mode: str) -> list[str]:
     """Render the data-source footer: ``full`` table, ``summary``, or nothing."""
-    failed = [s for s in statuses if not s["ok"]]
+    failed = [s for s in statuses if not s["ok"] and not s.get("unavailable")]
+    unavailable = [s for s in statuses if s.get("unavailable")]
+    attention = [s for s in statuses if not s["ok"] or s.get("note")]
     if mode == "none":
         return []
     if mode == "summary":
@@ -94,33 +118,39 @@ def _source_status_section(statuses: list[dict], mode: str) -> list[str]:
         # at the bottom instead of a 45-row table on every single report.
         if not statuses:
             return []
-        journals = len({s["journal"] for s in statuses})
-        if not failed:
-            return [f"> ✅ 数据源：{journals} 本刊、{len(statuses)} 条通道全部正常。", ""]
+        journals = len({s["journal"] for s in statuses if s.get("paper_type") != "conference"})
+        conferences = len({s["journal"] for s in statuses if s.get("paper_type") == "conference"})
+        counts = f"{journals} 本期刊、{conferences} 个会议"
+        if not attention:
+            return [f"> ✅ 数据源：{counts}，{len(statuses)} 条通道查询成功。", ""]
         out = [
             "## 数据源状态",
             "",
-            f"> ⚠️ {journals} 本刊中 **{len(failed)}** 条通道本次抓取失败，其余正常；失败不影响其他来源。",
+            f"> ⚠️ {counts}：**{len(failed)}** 条通道请求失败，**{len(unavailable)}** 条缺少可验证的索引覆盖；其他来源继续运行，但不保证补齐缺失论文。",
             "",
-            "| 期刊 | 数据源 | 条数 | 说明 |",
+            "| 期刊 / 会议 | 数据源 | 条数 | 说明 |",
             "|---|---|---|---|",
         ]
-        for status in failed:
+        for status in attention:
             note = (status.get("note") or "").replace("|", "/")
             out.append(f"| {status['journal']} | {status['source']} | {status['items']} | {note} |")
         out.append("")
+        names = {s["journal"] for s in statuses}
+        uncovered = sorted(n for n in names if not any(s["ok"] for s in statuses if s["journal"] == n))
+        if uncovered:
+            out.extend(["> 本次无可用来源：" + "、".join(uncovered) + "。不能据此认定没有新论文。", ""])
         return out
     # full
-    out = ["## 数据源状态", "", "| 期刊 | 数据源 | 状态 | 条数 | 说明 |", "|---|---|---|---|---|"]
+    out = ["## 数据源状态", "", "| 期刊 / 会议 | 数据源 | 状态 | 条数 | 说明 |", "|---|---|---|---|---|"]
     for status in statuses:
-        state = "✅" if status["ok"] else "❌"
+        state = "⚠️ 覆盖缺口" if status.get("unavailable") else "⚠️ 部分结果" if status.get("complete") is False else "✅" if status["ok"] else "❌"
         note = (status.get("note") or "").replace("|", "/")
         out.append(
             f"| {status['journal']} | {status['source']} | {state} | {status['items']} | {note} |"
         )
     out.append("")
-    if failed:
-        out.append(f"⚠️ 有 {len(failed)} 个数据源本次抓取失败，上面表格已标明原因；失败不影响其他来源。")
+    if attention:
+        out.append(f"⚠️ {len(failed)} 条通道请求失败，{len(unavailable)} 条覆盖缺口；请检查上表，其他来源不保证补齐缺失论文。")
     else:
         out.append("✅ 全部数据源抓取正常。")
     out.append("")
@@ -142,6 +172,8 @@ def build_markdown(
     all_entries: list[dict] | None = None,
 ) -> str:
     project = cfg.get("project", {}).get("name", "文献日报")
+    venue_names = {v["name"] for v in cfg.get("conferences", {}).get("venues", [])}
+    statuses = [dict(s, paper_type=s.get("paper_type", "conference" if s["journal"] in venue_names else "journal")) for s in statuses]
     # Tier counts always describe the *whole* matched set, never just the rows we
     # were told to list - otherwise a capped report would claim "必读 10" while
     # the push notification (which counts every new item) says something else.
@@ -150,7 +182,7 @@ def build_markdown(
     for entry in counted:
         counts[tier_of(entry["scored"].score, cfg.get("tiers", {}))] += 1
 
-    keyword_labels = " / ".join(k.get("label", "") for k in cfg.get("keywords", []))
+    keyword_labels = " / ".join(research_labels(cfg))
     lines: list[str] = []
     if cfg.get("output", {}).get("frontmatter", True):
         lines.extend(
@@ -196,11 +228,10 @@ def build_markdown(
         lines.append("")
         lines.append("所有抓取到的文献都已在历史记录中出现过，或没有文献同时满足关键词与时间窗条件。")
         lines.append("")
-    for tier in TIER_ORDER:
-        bucket = [e for e in entries if tier_of(e["scored"].score, cfg.get("tiers", {})) == tier]
+    for section, bucket in report_groups(entries, cfg):
         if not bucket:
             continue
-        lines.append(f"## {TIER_TITLES[tier]}（{len(bucket)}）")
+        lines.append(f"## {section}（{len(bucket)}）")
         lines.append("")
         for index, entry in enumerate(bucket, 1):
             item = entry["item"]
@@ -216,8 +247,15 @@ def build_markdown(
             if item.doi:
                 meta.append(f"**DOI**：{_doi_link(item.doi)}")
             lines.append("- " + " ｜ ".join(meta))
-            hits = "、".join(f"{m.label}（{'标题' if m.field_name == 'title' else '摘要'}：{m.term}）" for m in scored.matches)
+            labels = getattr(scored, "topic_labels", [])
+            if labels:
+                lines.append("- **研究方向**：" + "、".join(labels))
+            lines.append(f"- **相关性等级**：{TIER_TITLES[tier_of(scored.score, cfg.get('tiers', {}))]}")
+            hits = "、".join(f"{m.label}（{'标题' if m.field_name == 'title' else '摘要'}：{m.term}；{'重叠，不重复计分' if m.points == 0 else str(m.points) + ' 分'}）" for m in scored.matches)
             lines.append(f"- **匹配**：{hits} ｜ **得分**：{scored.score}")
+            contexts = list(dict.fromkeys(getattr(m, "context", "") for m in scored.matches if getattr(m, "context", "")))
+            if contexts:
+                lines.append("- **上下文依据**：" + "、".join(contexts))
             if item.authors:
                 lines.append(f"- **作者**：{', '.join(item.authors[:6])}{' 等' if len(item.authors) > 6 else ''}")
             if item.abstract:
@@ -277,7 +315,8 @@ def build_digest(
         item = entry["item"]
         url = _link(item)
         star = "🔥" if id(entry) in must_ids else "·"
-        hits = "、".join(entry["scored"].labels)
+        labels = getattr(entry["scored"], "topic_labels", []) or entry["scored"].labels
+        hits = "、".join(labels[:2]) + ("等" if len(labels) > 2 else "")
         if url:
             head = f"{star} [{_truncate(item.title, 120)}]({url})"
         else:

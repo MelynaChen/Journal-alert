@@ -4,6 +4,14 @@
 
 ## 会议监控（2026-10 新增）
 
+**2026-10-10 数据源故障修复**：新增 `usenix` 官方议程来源，为 FAST、USENIX ATC、OSDI 提供独立覆盖。程序用标准库 HTMLParser 解析 `node-paper` 结构，要求论文链接属于配置的会议和年份，读取标题、作者和摘要；不将会议日程日期当作发表日期，也不会访问登录后文件。网页结构变化或某年度失败会明确告警，保留其他年度已取得的记录，并不将不完整扫描标为完成。
+
+`conferences.sources` 现在默认包含 `usenix`；各会议可用 `venues[].sources` 限制适用来源。三个 USENIX 会议默认不再请求缺少可靠论文集的 Crossref 来源，仍保留 DOI 补摘要。可运行 `python run.py --check --sources usenix` 独立诊断。`usenix_slug` 配置官网会议路径前缀；`usenix_last_year` 可限定最后举办年份。USENIX 官方宣布 ATC 在 2025 年结束，因此配置仅检查至 2025 年，不请求不存在的 ATC 2026（[官方公告](https://www.usenix.org/blog/usenix-atc-announcement)）。
+
+DBLP 支持 `dblp_endpoints` 中三个官方 HTTPS 站点。非 JSON/HTML 响应会显示明确错误且不缓存；一个站点失败后，本轮后续会议不再重复请求它，继续尝试其余官方站点。所有站点都不可用时仍如实报告故障，不关闭 TLS 验证、不绕过交互验证。镜像切换不能保证解决所有地区的访问限制。
+
+日报分别统计期刊和会议，区分接口失败与“索引无可验证覆盖”，并列出完全没有可用来源的会议。Actions 改用支持 Node 24 的 `setup-python@v6` 和 `upload-artifact@v5`，保持 Python 3.12、原计划和 Secrets。
+
 `config.json` 已启用 FAST、USENIX ATC、OSDI、SOSP、ISCA、MICRO、HPCA、IEDM、IRPS、VLSI Symposium。所有会议及别名、DBLP stream 都在 `conferences.venues` 中配置；采集代码不内置会议名称。FAST、IEDM、IRPS 优先级为 5，其余为 4。优先级仅在相关性得分相同时排序，不增加得分。
 
 原有期刊、NAND/SSD 关键词、阈值、三个微信渠道与每天北京时间 07:30 的定时任务保留。依赖仍是 Python 3.10+ 标准库，无需 pip。旧配置不包含 `conferences` 时默认关闭；设置 `conferences.enabled=false` 可只运行期刊管线。
@@ -13,7 +21,7 @@
 | 配置 | 默认/当前值 | 含义 |
 |---|---|---|
 | `enabled` | 当前 true；旧配置默认 false | 开关 |
-| `sources` | dblp, openalex, crossref | 会议数据源；与期刊的 `window.sources` 分开 |
+| `sources` | usenix, dblp, openalex, crossref | 会议数据源；与期刊的 `window.sources` 分开 |
 | `lookback_days` | 30 | Crossref 索引更新回溯天数，不是会议发表日期过滤 |
 | `initial_lookback_days` | 365 | 每个会议/来源首次成功扫描的历史推荐窗口 |
 | `initial_max_items` | 10 | 每次运行首次回溯会议最多展示的篇数；0 表示仅建基线 |
@@ -40,7 +48,7 @@ python run.py --dry-run --print
 python run.py --once
 
 # 数据源诊断，不更新发现记录/历史状态
-python run.py --check --sources dblp,openalex,crossref
+python run.py --check --sources usenix,dblp,openalex,crossref
 
 # 独立真实 API 探测：内存数据库，无通知
 python tools/probe_conferences.py
@@ -65,7 +73,7 @@ DBLP 年份不会转换为 1 月 1 日。Crossref 只有年月或年份时，会
 1. 将代码、配置、测试及工作流改动提交到仓库默认分支。
 2. 保持 `conferences.enabled=true`，按需调整会议列表；无需新增付费 IEEE 凭据。
 3. 在仓库 Actions 启用 `journal-alert daily`，允许工作流写入仓库（现有 `contents: write` 用于保存状态）。保留原有 SERVERCHAN_SENDKEY / PUSHPLUS_TOKEN / BARK_KEY Secrets；本次实现不修改任何 Secret。
-4. 点击 **Run workflow**，`sources` 留空运行全部默认来源，或填 `dblp,openalex,crossref`。`days` 是期刊窗口。
+4. 点击 **Run workflow**，`sources` 留空运行全部默认来源，或填 `usenix,dblp,openalex,crossref`。`days` 是期刊窗口。
 5. 查看 `Offline regression tests`、`Run pipeline`、`Commit state and report back` 的结果。确认 `state/seen.sqlite` 成功写回，这是下次去重的必要条件。定时仍为北京时间每天 07:30，保留手动触发与并发排队。
 
 在 `Run pipeline` 日志中查看每会议/来源的记录数及 `summary`（期刊、会议、过滤、历史去重、候选、实际放入消息且有成功渠道的推送篇数、成功渠道数）。API 失败记为 FAILED，零条记录会给出覆盖提示，分页上限和时间预算耗尽会标记未完成，不记成功扫描。诊断日志也上传到 `logs-*` artifact。将 `log.level` 改为 `DEBUG` 可以查看题目低于阈值/排除词的原因和会议来源名称不匹配情况；报告中有命中词、字段和得分。标题权重为摘要的 3 倍；缺少摘要可凭高相关标题入选。
@@ -402,6 +410,8 @@ SORT file.name DESC
 ## 6. 配置
 
 ### 6.1 改关键词与期刊
+
+当前 NAND/SSD 配置启用 `research.enabled`，请编辑 `research.categories[].subtopics[].signals`。下面的旧版 `keywords` 示例只在未配置 `research` 或将其关闭时生效，旧配置无需迁移。两套分数不会叠加。完整规则及示例见 [研究主题筛选说明](docs/research-filtering.md)。
 
 编辑 `config.json`：
 

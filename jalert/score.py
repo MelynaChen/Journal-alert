@@ -21,6 +21,9 @@ class Match:
     term: str
     field_name: str
     points: int
+    topic: str = ""
+    level: str = ""
+    context: str = ""
 
 
 @dataclass
@@ -29,6 +32,13 @@ class Scored:
     matches: list[Match] = field(default_factory=list)
     excluded: bool = False
     exclude_term: str = ""
+    topics: list[str] = field(default_factory=list)
+    topic_labels: list[str] = field(default_factory=list)
+    primary_topic: str = ""
+    category: str = ""
+    relevance: str = ""
+    reason: str = ""
+    rejected: list[str] = field(default_factory=list)
 
     @property
     def labels(self) -> list[str]:
@@ -44,7 +54,11 @@ class Scored:
 
 
 class Scorer:
-    def __init__(self, keywords: list[dict], exclude_terms: list[str], exclude_doi_prefixes: list[str], conference_keywords=None):
+    def __init__(self, keywords: list[dict], exclude_terms: list[str], exclude_doi_prefixes: list[str], conference_keywords=None, research=None):
+        self.research = None
+        if research and research.get("enabled", False):
+            from .research import ResearchMatcher
+            self.research = ResearchMatcher(research)
         self.conference_keywords = conference_keywords or []
         self.groups = []
         for entry in keywords:
@@ -66,14 +80,23 @@ class Scorer:
             if (item.doi or "").lower().startswith(prefix):
                 result.excluded = True
                 result.exclude_term = f"doi:{prefix}"
+                result.reason = "excluded_doi_prefix"
                 return result
 
         haystack = f"{title} {abstract}"
         for term, pattern in self.excludes:
-            if pattern.search(haystack):
+            # "error correction" is technical content, not an editorial correction.
+            excluded_text = haystack
+            if self.research and term.lower() == "correction":
+                excluded_text = re.sub(r"\berror[\s-]+correction\b", "", haystack, flags=re.I)
+            if pattern.search(excluded_text):
                 result.excluded = True
                 result.exclude_term = term
+                result.reason = "excluded_term"
                 return result
+
+        if self.research:
+            return self.research.score(item)
 
         for label, weight, terms in self.groups:
             hit = None
@@ -109,6 +132,13 @@ def tier_of(score: int, tiers: dict) -> str:
     return "other"
 
 
+def build_scorer(cfg):
+    return Scorer(cfg.get("keywords", []), cfg.get("exclude_terms", []),
+                  cfg.get("exclude_doi_prefixes", []),
+                  cfg.get("conferences", {}).get("contextual_keywords", []),
+                  research=cfg.get("research"))
+
+
 TIER_TITLES = {
     "must_read": "必读",
     "worth_reading": "值得一读",
@@ -123,7 +153,7 @@ def balance_conferences(entries):
         item = entry["item"]
         if getattr(item, "paper_type", "journal") != "conference":
             continue
-        text = " ".join(entry["scored"].labels)
+        text = " ".join(getattr(entry["scored"], "topic_labels", []) or entry["scored"].labels)
         direction = "system" if "SSD" in text or "FTL" in text else "device" if "NAND" in text else "other"
         buckets[direction].append(entry)
     alternating = []

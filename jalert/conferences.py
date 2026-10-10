@@ -3,10 +3,14 @@ from datetime import date, timedelta
 import json
 import re
 import time
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from .fetch import FetchError, Item, http_request, _clean, _doi_from, _inverted_abstract, _parse_date
 from .identity import doi_key, fingerprint, normalize, merge_items
+
+
+class CoverageUnavailable(ValueError):
+    """The index has no verified venue; distinct from a failed HTTP request."""
 
 
 def venue_matches(value, venue):
@@ -41,6 +45,8 @@ class Client:
         self.cfg, self.store = cfg, store
         self.last = 0.0
         self.deadline = time.monotonic() + int(cfg.get("max_run_seconds", 600))
+        self.blocked_dblp = {}
+        self.warnings = []
 
     def get(self, url):
         if time.monotonic() >= self.deadline:
@@ -51,10 +57,34 @@ class Client:
         time.sleep(max(0, float(self.cfg.get("request_interval_seconds", 1)) - (time.monotonic() - self.last)))
         self.last = time.monotonic()
         _, raw = http_request(url, timeout=int(self.cfg.get("timeout_seconds", 20)),
-                              retries=int(self.cfg.get("retries", 1)))
-        payload = json.loads(raw)
+                              retries=int(self.cfg.get("retries", 1)), headers={"Accept": "application/json"})
+        try:
+            payload = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            head = raw[:8192].lower()
+            kind = "HTML challenge/access page" if any(t in head for t in (b"<html", b"<!doctype", b"anubis")) else "empty response" if not raw.strip() else "non-JSON response"
+            raise FetchError(f"{urlsplit(url).hostname}: {kind}; expected JSON; response not cached") from exc
         self.store.cache(url, payload)
         return payload
+
+    def dblp_page(self, params):
+        endpoints = self.cfg.get("dblp_endpoints", [
+            "https://dblp.org/search/publ/api",
+            "https://dblp.uni-trier.de/search/publ/api",
+            "https://dblp.dagstuhl.de/search/publ/api",
+        ])
+        for endpoint in endpoints:
+            if endpoint in self.blocked_dblp:
+                continue
+            try:
+                payload = self.get(endpoint + "?" + urlencode(params))
+                if not isinstance(payload, dict) or not isinstance(payload.get("result", {}).get("hits"), dict):
+                    raise ValueError("invalid DBLP response schema")
+                return payload
+            except (FetchError, ValueError) as exc:
+                self.blocked_dblp[endpoint] = failure_note(exc)
+        details = "; ".join(f"{urlsplit(e).hostname}: {note}" for e, note in self.blocked_dblp.items())
+        raise FetchError("DBLP official endpoints unavailable (skipped for rest of run): " + details)
 
 
 def make_item(venue, source, title, year=0, doi="", url="", published="", authors=None, abstract=""):
@@ -86,8 +116,7 @@ def dblp(client, venue, since, initial, log):
     for stream, requested_year in [(s, y) for s in streams for y in range(floor, date.today().year + 1)]:
         query = f"stream:{stream}: year:{requested_year}:"
         for page in range(pages):
-            payload = client.get("https://dblp.org/search/publ/api?" + urlencode(
-                {"q": query, "format": "json", "h": size, "f": page * size}))
+            payload = client.dblp_page({"q": query, "format": "json", "h": size, "f": page * size})
             hits = payload["result"]["hits"]
             records = hits.get("hit", [])
             if isinstance(records, dict):
@@ -135,7 +164,7 @@ def crossref(client, venue, since, initial, log):
         containers = sorted({n for w in discovery["message"].get("items", [])
                              for n in w.get("container-title", []) if venue_matches(n, venue)})
     if not containers:
-        raise ValueError("Crossref: no verified container title; coverage unavailable")
+        raise CoverageUnavailable("Crossref: no verified container title; coverage unavailable")
     items = []
     for container in containers:
         if not venue_matches(container, venue):
@@ -188,7 +217,7 @@ def openalex(client, venue, since, initial, log):
             {"search": venue.get("query") or venue.get("aliases", [venue["name"]])[0], "per-page": 50})).get("results", [])
         ids = [s["id"] for s in sources if s.get("type") == "conference" and venue_matches(s.get("display_name", ""), venue)]
     if not ids:
-        raise ValueError("OpenAlex: no verified conference source; DOI enrichment remains available")
+        raise CoverageUnavailable("OpenAlex: no verified conference source; DOI enrichment remains available")
     items = []
     for source_id in ids:
         cursor = "*"
@@ -228,12 +257,18 @@ def collect_conferences(cfg, store, log):
         if not venue.get("enabled", True):
             continue
         for source in settings.get("sources", ["dblp", "openalex", "crossref"]):
+            if source == "usenix" and not venue.get("usenix_slug"):
+                continue
+            if source not in venue.get("sources", settings.get("sources", ["dblp", "openalex", "crossref"])):
+                continue
             initial = not store.scanned(venue["name"], source)
             days = int(settings.get("initial_lookback_days", 365) if initial else settings.get("lookback_days", 30))
             since = (date.today() - timedelta(days=days)).isoformat()
-            status = {"journal": venue["name"], "source": source, "ok": False, "items": 0, "note": "", "initial": initial}
+            status = {"journal": venue["name"], "paper_type": "conference", "source": source, "ok": False, "items": 0, "note": "", "initial": initial}
             try:
-                adapter = {"dblp": dblp, "crossref": crossref, "openalex": openalex}[source]
+                from .usenix import usenix
+                client.warnings = []
+                adapter = {"dblp": dblp, "crossref": crossref, "openalex": openalex, "usenix": usenix}[source]
                 records = adapter(client, venue, since, initial, log)
                 for item in records:
                     item.initial = initial
@@ -244,20 +279,24 @@ def collect_conferences(cfg, store, log):
                         item.initial_hidden = True
                     items.append(item)
                 status.update(ok=True, items=len(records), note="" if records else "no verified records; coverage may be incomplete")
+                if client.warnings:
+                    status.update(note="; ".join(client.warnings), complete=False)
                 log.info("conference %s %s: %d records%s", venue["name"], source, len(records), " (initial)" if initial else "")
                 if not records:
                     log.warning("conference %s %s: no verified records; coverage unknown", venue["name"], source)
             except Exception as exc:
                 # Do not print request URLs: future API credentials may occur there.
                 status["note"] = failure_note(exc)
-                log.warning("conference %s %s FAILED: %s", venue["name"], source, status["note"])
+                status["unavailable"] = isinstance(exc, CoverageUnavailable)
+                log.warning("conference %s %s %s: %s", venue["name"], source,
+                            "UNAVAILABLE" if status["unavailable"] else "FAILED", status["note"])
             statuses.append(status)
     items = merge_items(items)
     # DOI is authoritative. No fuzzy title enrichment, so namesakes cannot merge.
     budget = int(settings.get("enrichment_limit", 30))
     if "openalex" in settings.get("sources", []):
-        from .score import Scorer
-        scorer = Scorer(cfg.get("keywords", []), [], [], settings.get("contextual_keywords", []))
+        from .score import build_scorer
+        scorer = build_scorer(cfg)
         candidates = sorted((i for i in items if i.doi and not i.abstract), key=lambda i: scorer.score(i).score, reverse=True)
         for item in candidates[:budget]:
             try:

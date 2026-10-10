@@ -27,7 +27,7 @@ from jalert.cards import write_cards  # noqa: E402
 from jalert.config import describe_secret_sources, load_config  # noqa: E402
 from jalert.fetch import collect_items, http_request  # noqa: E402
 from jalert.report import build_digest, build_markdown  # noqa: E402
-from jalert.score import Scorer, tier_of, balance_conferences  # noqa: E402
+from jalert.score import build_scorer, tier_of, balance_conferences  # noqa: E402
 from jalert.state import Store, last_run_started  # noqa: E402
 from jalert.conferences import collect_conferences
 from jalert.identity import merge_items
@@ -61,8 +61,16 @@ def entry_to_dict(entry: dict) -> dict:
         "scored": {
             "score": scored.score,
             "labels": scored.labels,
+            "topics": scored.topics,
+            "topic_labels": scored.topic_labels,
+            "primary_topic": scored.primary_topic,
+            "category": scored.category,
+            "relevance": scored.relevance,
+            "reason": scored.reason,
+            "rejected": scored.rejected,
             "matches": [
-                {"label": m.label, "term": m.term, "field_name": m.field_name, "points": m.points}
+                {"label": m.label, "term": m.term, "field_name": m.field_name, "points": m.points,
+                 "topic": m.topic, "level": m.level, "context": m.context}
                 for m in scored.matches
             ],
         },
@@ -78,6 +86,13 @@ def hydrate_entries(records: list[dict]) -> list[dict]:
         scored = SimpleNamespace(
             score=scored_data["score"],
             labels=scored_data.get("labels", []),
+            topics=scored_data.get("topics", []),
+            topic_labels=scored_data.get("topic_labels", []),
+            primary_topic=scored_data.get("primary_topic", ""),
+            category=scored_data.get("category", ""),
+            relevance=scored_data.get("relevance", ""),
+            reason=scored_data.get("reason", ""),
+            rejected=scored_data.get("rejected", []),
             matches=[SimpleNamespace(**m) for m in scored_data.get("matches", [])],
             excluded=False,
         )
@@ -307,10 +322,13 @@ def doctor(cfg: dict, log) -> int:
 
     journals = [j for j in cfg.get("journals", []) if j.get("enabled", True)]
     keywords = cfg.get("keywords", [])
-    print(f"期刊 / 关键词  : {len(journals)} 本启用 / {len(keywords)} 组关键词")
+    research = cfg.get("research", {})
+    research_topics = [t for c in research.get("categories", []) for t in c.get("subtopics", []) if t.get("enabled", True)]
+    active_count = len(research_topics) if research.get("enabled", False) else len(keywords)
+    print(f"期刊 / 关键词  : {len(journals)} 本启用 / {active_count} 组{'研究主题' if research.get('enabled', False) else '关键词'}")
     if not journals:
         problems.append("config.json 里没有启用的期刊")
-    if not keywords:
+    if not active_count:
         problems.append("config.json 里没有关键词")
     tiers = cfg.get("tiers", {})
     print(
@@ -369,7 +387,7 @@ def run(args: argparse.Namespace) -> int:
     if args.sources:
         chosen = {s.strip().lower() for s in args.sources.split(",") if s.strip()}
         cfg["window"]["sources"] = {name: name in chosen for name in ("rss", "openalex", "crossref")}
-        cfg.setdefault("conferences", {})["sources"] = [name for name in ("dblp", "openalex", "crossref") if name in chosen]
+        cfg.setdefault("conferences", {})["sources"] = [name for name in ("usenix", "dblp", "openalex", "crossref") if name in chosen]
 
     log = setup_logging(cfg["log_dir"], cfg.get("log", {}).get("level", "INFO"))
     started = datetime.now().isoformat(timespec="seconds")
@@ -418,26 +436,27 @@ def run(args: argparse.Namespace) -> int:
     statuses.extend(conference_statuses)
     log.info("fetched journals=%d conferences=%d cross_source_duplicates=%d", journal_count,
              len(conference_items), journal_count + len(conference_items) - len(items))
-    failures = [s for s in statuses if not s["ok"]]
+    failures = [s for s in statuses if not s["ok"] and not s.get("unavailable")]
     log.info("fetched %d unique items (%d source calls failed)", len(items), len(failures))
 
     if args.check:
         print_status_table(statuses)
         return 0
 
-    scorer = Scorer(
-        cfg.get("keywords", []),
-        cfg.get("exclude_terms", []),
-        cfg.get("exclude_doi_prefixes", []),
-        cfg.get("conferences", {}).get("contextual_keywords", []),
-    )
+    scorer = build_scorer(cfg)
     min_score = int(tiers.get("min_score", 3))
 
     matched: list[dict] = []
     for item in items:
         scored = scorer.score(item)
+        if not scored.excluded and scored.score < min_score:
+            scored.reason = "below_min_score"
+        log.debug("relevance title=%r topics=%s score=%d class=%s reason=%s matches=%s rejected=%s",
+                  item.title, scored.topics, scored.score, scored.relevance,
+                  scored.exclude_term or scored.reason or "legacy_keywords",
+                  [(m.term, m.field_name, m.points, m.context) for m in scored.matches], scored.rejected)
         if scored.excluded or scored.score < min_score:
-            log.debug("filtered %s: score=%d reason=%s", item.title, scored.score, scored.exclude_term or "below min_score")
+            log.debug("filtered %s: score=%d reason=%s", item.title, scored.score, scored.exclude_term or scored.reason or "below_min_score")
             continue
         matched.append({"item": item, "scored": scored})
     log.info("keyword matched %d/%d items (min_score=%d)", len(matched), len(items), min_score)
@@ -603,7 +622,7 @@ def main(argv: list[str] | None = None) -> int:
         help="send one test message through the configured channels, then exit",
     )
     parser.add_argument("--days", type=int, help="override the lookback window in days")
-    parser.add_argument("--sources", help="comma list: rss,dblp,openalex,crossref (journals and conferences)")
+    parser.add_argument("--sources", help="comma list: rss,usenix,dblp,openalex,crossref (journals and conferences)")
     parser.add_argument("--date", help="report date label (YYYY-MM-DD), defaults to today")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):

@@ -122,15 +122,16 @@ def parse_report(path: Path) -> tuple[dict, list[dict]]:
             (t for title, t in TIER_SECTIONS.items() if heading.startswith(title)),
             None,
         )
-        if tier is None:
-            continue  # e.g. "## 数据源状态"
         for block in re.split(r"^(?=###\s+\d+\.\s)", content, flags=re.MULTILINE):
             match = _ENTRY_RE.match(block)
             if not match:
                 continue
+            entry_tier = next((t for label, t in TIER_SECTIONS.items() if _field(block, "相关性等级") == label), tier)
+            if entry_tier is None:
+                continue
             entry = _parse_entry(block, match)
-            entry["tier"] = tier
-            entry["tierLabel"] = TIER_TITLES[tier]
+            entry["tier"] = entry_tier
+            entry["tierLabel"] = TIER_TITLES[entry_tier]
             entry["reportDate"] = day
             entries.append(entry)
     return meta, entries
@@ -168,6 +169,7 @@ def _parse_entry(block: str, match: re.Match) -> dict:
         "url": url,
         "doi": doi,
         "journal": journal,
+        "researchTopics": _field(block, "研究方向"),
         "jabbr": JOURNAL_ABBR.get(journal, journal or "—"),
         "pubdate": _field(block, "日期"),
         "topic": label or "其他",

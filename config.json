@@ -313,6 +313,7 @@
   "conferences": {
     "enabled": true,
     "sources": [
+      "usenix",
       "dblp",
       "openalex",
       "crossref"
@@ -341,7 +342,13 @@
           "USENIX Conference on File and Storage Technologies",
           "File and Storage Technologies"
         ],
-        "query": "USENIX Conference on File and Storage Technologies"
+        "query": "USENIX Conference on File and Storage Technologies",
+        "usenix_slug": "fast",
+        "sources": [
+          "usenix",
+          "dblp",
+          "openalex"
+        ]
       },
       {
         "name": "USENIX ATC",
@@ -355,7 +362,14 @@
           "USENIX ATC",
           "USENIX"
         ],
-        "query": "USENIX Annual Technical Conference"
+        "query": "USENIX Annual Technical Conference",
+        "usenix_slug": "atc",
+        "sources": [
+          "usenix",
+          "dblp",
+          "openalex"
+        ],
+        "usenix_last_year": 2025
       },
       {
         "name": "OSDI",
@@ -369,7 +383,13 @@
           "USENIX Symposium on Operating Systems Design and Implementation",
           "OSDI"
         ],
-        "query": "Operating Systems Design and Implementation"
+        "query": "Operating Systems Design and Implementation",
+        "usenix_slug": "osdi",
+        "sources": [
+          "usenix",
+          "dblp",
+          "openalex"
+        ]
       },
       {
         "name": "SOSP",
@@ -504,6 +524,590 @@
         ]
       }
     ],
-    "max_run_seconds": 600
+    "max_run_seconds": 600,
+    "dblp_endpoints": [
+      "https://dblp.org/search/publ/api",
+      "https://dblp.uni-trier.de/search/publ/api",
+      "https://dblp.dagstuhl.de/search/publ/api"
+    ]
+  },
+  "research": {
+    "enabled": true,
+    "weights": {
+      "core": 5,
+      "technical": 4,
+      "extended": 2
+    },
+    "title_multiplier": 3,
+    "abstract_multiplier": 1,
+    "context_chars": 140,
+    "max_score": 60,
+    "extended_linked_weight": 4,
+    "peripheral_score_cap": 6,
+    "allow_peripheral": false,
+    "contexts": {
+      "device": [
+        "3d nand",
+        "3-d nand",
+        "nand flash",
+        "nand",
+        "flash memory",
+        "flash-based storage",
+        "flash storage",
+        "solid state drive",
+        "solid state drives",
+        "ssd",
+        "ssds",
+        "flash translation layer",
+        "nvme",
+        "smartssd",
+        "zoned namespace",
+        "flexible data placement",
+        "computational storage",
+        "in-storage processing"
+      ],
+      "nand": [
+        "nand",
+        "flash",
+        "ssd",
+        "ssds",
+        "solid state drive",
+        "solid state drives"
+      ],
+      "storage_architecture": [
+        "3d nand",
+        "3-d nand",
+        "nand flash",
+        "nand",
+        "flash memory",
+        "flash-based storage",
+        "flash storage",
+        "solid state drive",
+        "solid state drives",
+        "ssd",
+        "ssds",
+        "flash translation layer",
+        "nvme",
+        "smartssd",
+        "zoned namespace",
+        "flexible data placement",
+        "computational storage",
+        "in-storage processing",
+        "storage architecture",
+        "storage device",
+        "storage devices",
+        "storage tiering",
+        "tiered storage",
+        "block storage",
+        "persistent storage",
+        "distributed flash storage",
+        "gpu direct storage",
+        "gpudirect storage"
+      ],
+      "nvm": [
+        "phase change memory",
+        "phase-change memory",
+        "nonvolatile memory",
+        "non-volatile memory",
+        "memory cell",
+        "storage architecture",
+        "nand",
+        "ssd",
+        "ssds"
+      ]
+    },
+    "context_exclusions": {
+      "device": [
+        "single shot detector",
+        "sum of squared differences",
+        "sum of squared deviations"
+      ],
+      "storage_architecture": [
+        "single shot detector",
+        "sum of squared differences",
+        "sum of squared deviations"
+      ]
+    },
+    "categories": [
+      {
+        "id": "nand",
+        "label": "NAND Flash 器件与可靠性",
+        "subtopics": [
+          {
+            "id": "nand_architecture",
+            "label": "3D NAND 架构",
+            "signals": [
+              {
+                "id": "nand_core",
+                "level": "core",
+                "terms": [
+                  "3d nand",
+                  "3-d nand",
+                  "nand flash",
+                  "nand memory",
+                  "vertical nand",
+                  "v-nand",
+                  "tlc nand",
+                  "qlc nand",
+                  "plc nand",
+                  "slc nand"
+                ]
+              },
+              {
+                "id": "nand_architecture",
+                "level": "technical",
+                "terms": [
+                  "charge trap flash",
+                  "charge-trap flash",
+                  "floating gate flash",
+                  "charge trap",
+                  "vertical nand",
+                  "string stacking",
+                  "wafer bonding",
+                  "tlc",
+                  "qlc",
+                  "plc"
+                ],
+                "context": "nand"
+              }
+            ],
+            "topic_id": "nand_device",
+            "topic_label": "NAND 器件与架构"
+          },
+          {
+            "id": "nand_physics",
+            "label": "NAND 器件物理",
+            "signals": [
+              {
+                "id": "nand_physics",
+                "level": "technical",
+                "terms": [
+                  "threshold voltage",
+                  "threshold voltage distribution",
+                  "charge trapping",
+                  "cell-to-cell interference",
+                  "vertical channel",
+                  "floating gate",
+                  "flash memory cell"
+                ],
+                "context": "nand"
+              }
+            ],
+            "topic_id": "nand_device",
+            "topic_label": "NAND 器件与架构"
+          },
+          {
+            "id": "nand_reliability",
+            "label": "NAND 可靠性",
+            "signals": [
+              {
+                "id": "flash_reliability",
+                "level": "core",
+                "terms": [
+                  "nand reliability",
+                  "flash reliability"
+                ]
+              },
+              {
+                "id": "nand_reliability",
+                "level": "technical",
+                "terms": [
+                  "read disturb",
+                  "program disturb",
+                  "read-induced disturb",
+                  "retention loss",
+                  "early retention loss",
+                  "data retention",
+                  "p/e cycling",
+                  "program/erase cycling",
+                  "program erase cycling",
+                  "nand endurance",
+                  "nand retention",
+                  "flash retention",
+                  "read reference voltage",
+                  "nand bit error rate"
+                ],
+                "context": "nand"
+              }
+            ]
+          },
+          {
+            "id": "nand_ecc",
+            "label": "NAND 纠错与恢复",
+            "signals": [
+              {
+                "id": "nand_ecc",
+                "level": "technical",
+                "terms": [
+                  "ldpc",
+                  "bch",
+                  "ecc",
+                  "error correction",
+                  "soft-decision decoding",
+                  "soft decoding",
+                  "read retry",
+                  "error recovery",
+                  "bad block",
+                  "data integrity"
+                ],
+                "context": "nand"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ssd",
+        "label": "SSD 控制器、FTL 与协议",
+        "subtopics": [
+          {
+            "id": "ssd_controller",
+            "label": "SSD 控制器",
+            "signals": [
+              {
+                "id": "ssd_core",
+                "level": "core",
+                "terms": [
+                  "solid state drive",
+                  "solid state drives",
+                  "solid-state drive",
+                  "solid-state drives",
+                  "ssd",
+                  "ssds"
+                ],
+                "fallback": true,
+                "exclude_context": [
+                  "single shot detector",
+                  "single-shot detector",
+                  "sum of squared differences",
+                  "sum of squared deviations"
+                ]
+              },
+              {
+                "id": "ssd_controller_core",
+                "level": "core",
+                "terms": [
+                  "ssd controller",
+                  "ssd firmware",
+                  "nand flash controller",
+                  "flash memory controller"
+                ]
+              },
+              {
+                "id": "ssd_controller",
+                "level": "technical",
+                "terms": [
+                  "controller architecture",
+                  "firmware",
+                  "channel parallelism",
+                  "die-level parallelism",
+                  "i/o scheduling"
+                ],
+                "context": "device"
+              }
+            ]
+          },
+          {
+            "id": "ftl",
+            "label": "FTL 与闪存管理",
+            "signals": [
+              {
+                "id": "ftl_core",
+                "level": "core",
+                "terms": [
+                  "flash translation layer",
+                  "flash translation layers"
+                ]
+              },
+              {
+                "id": "ftl_abbreviation",
+                "level": "core",
+                "terms": [
+                  "ftl"
+                ],
+                "context": "device"
+              },
+              {
+                "id": "flash_management",
+                "level": "technical",
+                "terms": [
+                  "address mapping",
+                  "garbage collection",
+                  "gc",
+                  "wear leveling",
+                  "wear levelling",
+                  "write amplification",
+                  "over-provisioning",
+                  "overprovisioning",
+                  "flash mapping table",
+                  "flash block management",
+                  "flash page mapping",
+                  "flash block mapping"
+                ],
+                "context": "device"
+              }
+            ]
+          },
+          {
+            "id": "nvme",
+            "label": "NVMe 与新接口",
+            "signals": [
+              {
+                "id": "ssd_interfaces_core",
+                "level": "core",
+                "terms": [
+                  "zoned namespace ssd",
+                  "flexible data placement ssd",
+                  "zns ssd",
+                  "fdp ssd"
+                ]
+              },
+              {
+                "id": "nvme",
+                "level": "technical",
+                "terms": [
+                  "nvme",
+                  "nvme-of",
+                  "nvme over fabrics",
+                  "zoned namespace",
+                  "zoned namespaces",
+                  "open-channel ssd",
+                  "flexible data placement"
+                ]
+              },
+              {
+                "id": "interface_abbreviations",
+                "level": "technical",
+                "terms": [
+                  "zns",
+                  "fdp"
+                ],
+                "context": "device"
+              }
+            ]
+          },
+          {
+            "id": "ssd_performance",
+            "label": "SSD 性能与 QoS",
+            "signals": [
+              {
+                "id": "ssd_performance",
+                "level": "technical",
+                "terms": [
+                  "tail latency",
+                  "qos",
+                  "quality of service",
+                  "latency predictability",
+                  "read/write interference",
+                  "read write interference",
+                  "ssd performance",
+                  "ssd latency",
+                  "ssd throughput",
+                  "ssd caching"
+                ],
+                "context": "device"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "systems",
+        "label": "存储系统与数据库",
+        "subtopics": [
+          {
+            "id": "enterprise_ssd",
+            "label": "企业级 SSD",
+            "signals": [
+              {
+                "id": "enterprise_ssd",
+                "level": "technical",
+                "terms": [
+                  "enterprise ssd",
+                  "data center ssd",
+                  "datacenter ssd",
+                  "power loss protection",
+                  "endurance",
+                  "thermal management",
+                  "ssd write buffer",
+                  "ssd write cache"
+                ],
+                "context": "device"
+              }
+            ]
+          },
+          {
+            "id": "storage_engine",
+            "label": "存储引擎与文件系统",
+            "signals": [
+              {
+                "id": "storage_engine",
+                "level": "extended",
+                "terms": [
+                  "rocksdb",
+                  "f2fs",
+                  "lsm-tree",
+                  "lsm tree",
+                  "log structured merge tree",
+                  "key-value ssd",
+                  "key value ssd",
+                  "flash-aware file system",
+                  "flash-based file system",
+                  "ssd-based file system"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "distributed_storage",
+            "label": "分布式存储",
+            "signals": [
+              {
+                "id": "distributed_storage",
+                "level": "extended",
+                "terms": [
+                  "distributed flash storage",
+                  "distributed storage",
+                  "disaggregated storage",
+                  "storage tiering",
+                  "erasure coding"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "frontier",
+        "label": "AI、CXL 与计算存储",
+        "subtopics": [
+          {
+            "id": "cxl_storage",
+            "label": "CXL 与分层存储",
+            "signals": [
+              {
+                "id": "cxl_storage",
+                "level": "extended",
+                "terms": [
+                  "cxl ssd",
+                  "cxl-ssd",
+                  "cxl memory",
+                  "memory pooling",
+                  "tiered storage",
+                  "cxl"
+                ],
+                "context": "storage_architecture"
+              }
+            ]
+          },
+          {
+            "id": "computational_storage",
+            "label": "计算存储",
+            "signals": [
+              {
+                "id": "computational_storage",
+                "level": "technical",
+                "terms": [
+                  "smartssd",
+                  "computational storage",
+                  "computational storage drive",
+                  "computational storage device",
+                  "in-storage processing",
+                  "computational ssd"
+                ]
+              },
+              {
+                "id": "near_data_processing",
+                "level": "technical",
+                "terms": [
+                  "near-data processing",
+                  "near data processing"
+                ],
+                "context": "device"
+              }
+            ]
+          },
+          {
+            "id": "ai_storage",
+            "label": "AI 存储",
+            "signals": [
+              {
+                "id": "ai_storage",
+                "level": "extended",
+                "terms": [
+                  "ssd-based llm inference",
+                  "llm inference",
+                  "kv cache offloading",
+                  "kv-cache offloading",
+                  "gpu direct storage",
+                  "gpudirect storage",
+                  "ai checkpointing",
+                  "vector database storage",
+                  "ai storage"
+                ],
+                "context": "storage_architecture"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "emerging",
+        "label": "新型存储与安全",
+        "subtopics": [
+          {
+            "id": "emerging_nvm",
+            "label": "新型非易失存储",
+            "signals": [
+              {
+                "id": "emerging_nvm",
+                "level": "extended",
+                "terms": [
+                  "rram",
+                  "reram",
+                  "mram",
+                  "fefet",
+                  "phase change memory",
+                  "resistive random access memory",
+                  "magnetoresistive random access memory",
+                  "ferroelectric field effect transistor",
+                  "compute-in-memory",
+                  "computing-in-memory"
+                ]
+              },
+              {
+                "id": "pcm_abbreviation",
+                "level": "extended",
+                "terms": [
+                  "pcm"
+                ],
+                "context": "nvm"
+              }
+            ]
+          },
+          {
+            "id": "storage_security",
+            "label": "SSD 安全与数据恢复",
+            "signals": [
+              {
+                "id": "storage_security",
+                "level": "technical",
+                "terms": [
+                  "secure erase",
+                  "data remanence",
+                  "ssd recovery",
+                  "ssd data recovery",
+                  "fault injection",
+                  "ssd encryption",
+                  "data encryption",
+                  "secure deletion"
+                ],
+                "context": "device"
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 }
