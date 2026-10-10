@@ -1,10 +1,10 @@
 {
   "project": {
-    "name": "大气环境文献日报",
+    "name": "NAND Flash & SSD 论文日报（精准筛选版）",
     "timezone": "Asia/Shanghai"
   },
   "window": {
-    "days": 3,
+    "days": 7,
     "max_catchup_days": 30,
     "max_items_per_journal": 60,
     "workers": 6,
@@ -20,92 +20,153 @@
   "output": {
     "dir": "reports",
     "keep_days": 365,
+    "max_entries": 30,
     "open_after_run": false,
     "write_json_snapshot": true,
-    "cards": true,
-    "cards_html": "docs/index.html"
+    "source_status": "summary",
+    "frontmatter": true
   },
   "keywords": [
     {
-      "label": "空气污染",
-      "weight": 3,
+      "label": "NAND Flash器件与3D NAND",
+      "weight": 5,
       "terms": [
-        "air pollution",
-        "air pollutant",
-        "air quality",
-        "particulate matter",
-        "pm2.5",
-        "pm10",
-        "ultrafine particle",
-        "aerosol",
-        "ozone",
-        "no2",
-        "so2",
-        "haze",
-        "smog",
-        "emission inventory",
-        "anthropogenic emission",
-        "exposure assessment"
+        "3d nand",
+        "3-d nand",
+        "nand flash",
+        "nand memory",
+        "vertical nand",
+        "v-nand",
+        "charge-trap flash",
+        "charge trap flash",
+        "floating-gate flash",
+        "3d charge trap memory",
+        "qlc nand",
+        "plc nand",
+        "tlc nand",
+        "slc nand",
+        "flash memory cell"
       ]
     },
     {
-      "label": "遥感",
-      "weight": 3,
+      "label": "NAND可靠性与失效机理",
+      "weight": 4,
       "terms": [
-        "remote sensing",
-        "satellite",
-        "satellite observation",
-        "modis",
-        "viirs",
-        "tropomi",
-        "omi",
-        "landsat",
-        "sentinel-5p",
-        "hyperspectral",
-        "lidar",
-        "retrieval algorithm",
-        "geostationary",
-        "aerosol optical depth",
-        "aod"
+        "nand reliability",
+        "flash reliability",
+        "nand endurance",
+        "nand retention",
+        "flash retention",
+        "read disturb",
+        "program disturb",
+        "read-induced disturb",
+        "early retention loss",
+        "cell-to-cell interference",
+        "read reference voltage",
+        "threshold voltage distribution",
+        "flash program erase",
+        "nand program erase",
+        "nand bit error rate"
       ]
     },
     {
-      "label": "大气化学",
-      "weight": 3,
+      "label": "SSD架构与NVMe",
+      "weight": 5,
       "terms": [
-        "atmospheric chemistry",
-        "atmospheric oxidation",
-        "photochemistry",
-        "photochemical",
-        "secondary organic aerosol",
-        "soa",
-        "nox",
-        "voc",
-        "volatile organic",
-        "chemical transport model",
-        "heterogeneous chemistry",
-        "atmospheric lifetime",
-        "radical chemistry",
-        "oh radical"
+        "solid-state drive",
+        "solid state drive",
+        "ssd controller",
+        "ssd architecture",
+        "ssd firmware",
+        "nvme ssd",
+        "nvme device",
+        "nvme controller",
+        "nvme over fabrics",
+        "nvme-of",
+        "zns ssd",
+        "zoned namespace",
+        "zoned namespaces",
+        "open-channel ssd",
+        "computational storage device"
       ]
     },
     {
-      "label": "生物地球化学",
-      "weight": 3,
+      "label": "FTL与闪存管理",
+      "weight": 5,
       "terms": [
-        "biogeochemistry",
-        "biogeochemical",
-        "carbon cycle",
-        "nitrogen cycle",
-        "nutrient cycling",
-        "methane",
-        "ch4 flux",
-        "co2 flux",
-        "carbon flux",
-        "terrestrial carbon",
-        "soil carbon",
-        "nitrous oxide",
-        "n2o"
+        "flash translation layer",
+        "flash mapping table",
+        "flash garbage collection",
+        "ssd garbage collection",
+        "ssd wear leveling",
+        "flash wear leveling",
+        "nand wear leveling",
+        "ssd write amplification",
+        "flash write amplification",
+        "ssd over-provisioning",
+        "flash block management",
+        "flash page mapping",
+        "flash block mapping",
+        "zoned storage"
+      ]
+    },
+    {
+      "label": "SSD存储系统与I/O优化",
+      "weight": 4,
+      "terms": [
+        "ssd performance",
+        "ssd latency",
+        "ssd throughput",
+        "ssd caching",
+        "ssd-based storage",
+        "ssd-based file system",
+        "flash-based storage",
+        "flash-based file system",
+        "flash storage system",
+        "nvme storage",
+        "nvme io",
+        "nvme i/o",
+        "storage class memory and ssd",
+        "key-value ssd",
+        "key value ssd"
+      ]
+    },
+    {
+      "label": "NAND纠错与数据恢复",
+      "weight": 4,
+      "terms": [
+        "nand error correction",
+        "flash error correction",
+        "nand ldpc",
+        "flash ldpc",
+        "nand bch",
+        "flash bch",
+        "ssd error recovery",
+        "nand read retry",
+        "flash read retry",
+        "nand soft decoding",
+        "flash soft decoding",
+        "nand bad block",
+        "flash bad block",
+        "ssd data recovery",
+        "ssd data integrity"
+      ]
+    },
+    {
+      "label": "SSD与Flash软硬件协同",
+      "weight": 4,
+      "terms": [
+        "ssd firmware optimization",
+        "ssd power loss protection",
+        "ssd write buffer",
+        "ssd endurance",
+        "ssd write cache",
+        "ssd garbage collection",
+        "nand flash controller",
+        "flash memory controller",
+        "in-storage processing",
+        "near-data processing in ssd",
+        "computational ssd"
       ]
     }
   ],
@@ -127,37 +188,122 @@
     "10.1038/d41586"
   ],
   "tiers": {
-    "must_read": 12,
-    "worth_reading": 6,
-    "min_score": 3
+    "must_read": 20,
+    "worth_reading": 15,
+    "min_score": 12
   },
   "journals": [
-    { "name": "Nature", "issn": "0028-0836", "rss": "https://www.nature.com/nature.rss", "enabled": true },
-    { "name": "Science", "issn": "0036-8075", "rss": "https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=science", "enabled": true },
-    { "name": "Nature Climate Change", "issn": "1758-6798", "rss": "https://www.nature.com/nclimate.rss", "enabled": true },
-    { "name": "Nature Geoscience", "issn": "1752-0908", "rss": "https://www.nature.com/ngeo.rss", "enabled": true },
-    { "name": "Nature Sustainability", "issn": "2398-9629", "rss": "https://www.nature.com/natsustain.rss", "enabled": true },
-    { "name": "Nature Cities", "issn": "2731-9997", "rss": "https://www.nature.com/natcities.rss", "enabled": true },
-    { "name": "Nature Communications", "issn": "2041-1723", "rss": "https://www.nature.com/ncomms.rss", "enabled": true },
-    { "name": "Science Advances", "issn": "2375-2548", "rss": "https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=sciadv", "enabled": true },
-    { "name": "Earth's Future", "issn": "2328-4277", "rss": "https://agupubs.onlinelibrary.wiley.com/feed/23284277/most-recent", "enabled": true },
-    { "name": "Atmospheric Chemistry and Physics", "issn": "1680-7324", "rss": "https://acp.copernicus.org/xml/rss2_0.xml", "enabled": true },
-    { "name": "Environmental Science & Technology", "issn": "0013-936X", "rss": "", "enabled": true },
-    { "name": "Environmental Research Letters", "issn": "1748-9326", "rss": "https://iopscience.iop.org/journal/rss/1748-9326", "enabled": true },
-    { "name": "Geophysical Research Letters", "issn": "1944-8007", "rss": "https://agupubs.onlinelibrary.wiley.com/feed/19448007/most-recent", "enabled": true },
-    { "name": "Journal of Geophysical Research: Atmospheres", "issn": "2169-8996", "rss": "https://agupubs.onlinelibrary.wiley.com/feed/21698996/most-recent", "enabled": true },
-    { "name": "Atmospheric Environment", "issn": "1352-2310", "rss": "https://rss.sciencedirect.com/publication/science/13522310", "enabled": true },
-    { "name": "Remote Sensing of Environment", "issn": "0034-4257", "rss": "https://rss.sciencedirect.com/publication/science/00344257", "enabled": true }
+    {
+      "name": "IEEE Transactions on Electron Devices",
+      "issn": "0018-9383",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "IEEE Electron Device Letters",
+      "issn": "0741-3106",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "IEEE Transactions on Device and Materials Reliability",
+      "issn": "1530-4388",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "IEEE Journal of Solid-State Circuits",
+      "issn": "0018-9200",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "IEEE Transactions on Computers",
+      "issn": "0018-9340",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems",
+      "issn": "0278-0070",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "IEEE Transactions on Very Large Scale Integration (VLSI) Systems",
+      "issn": "1063-8210",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "IEEE Transactions on Parallel and Distributed Systems",
+      "issn": "1045-9219",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "ACM Transactions on Storage",
+      "issn": "1553-3077",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "ACM Transactions on Computer Systems",
+      "issn": "0734-2071",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "Microelectronics Reliability",
+      "issn": "0026-2714",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "Solid-State Electronics",
+      "issn": "0038-1101",
+      "rss": "",
+      "enabled": true
+    },
+    {
+      "name": "Nature Electronics",
+      "issn": "2520-1131",
+      "rss": "https://www.nature.com/natelectron.rss",
+      "enabled": true
+    },
+    {
+      "name": "Nature Communications",
+      "issn": "2041-1723",
+      "rss": "https://www.nature.com/ncomms.rss",
+      "enabled": true
+    },
+    {
+      "name": "Proceedings of the IEEE",
+      "issn": "0018-9219",
+      "rss": "",
+      "enabled": true
+    }
   ],
   "push": {
     "enabled": true,
     "skip_when_empty": true,
-    "max_items": 6,
+    "max_items": 8,
     "max_chars": 1800,
     "channels": {
-      "serverchan": { "enabled": true, "sendkey": "SCT432654TVot3QK7k5WKuHWToKGbZzTZs" },
-      "pushplus": { "enabled": true, "token": "" },
-      "bark": { "enabled": false, "key": "", "server": "https://api.day.app", "sound": "bird" }
+      "serverchan": {
+        "enabled": true,
+        "sendkey": ""
+      },
+      "pushplus": {
+        "enabled": false,
+        "token": ""
+      },
+      "bark": {
+        "enabled": false,
+        "key": "",
+        "server": "https://api.day.app",
+        "sound": "bird"
+      }
     }
   },
   "log": {
