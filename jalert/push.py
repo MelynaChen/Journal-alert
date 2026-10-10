@@ -28,7 +28,7 @@ def push_serverchan(sendkey: str, title: str, body: str) -> dict:
             method="POST",
         )
     except FetchError as exc:
-        return _result("serverchan", False, str(exc))
+        return _result("serverchan", False, str(exc).replace(sendkey, "[REDACTED]"))
     text = raw.decode("utf-8", errors="replace")
     if status != 200:
         return _result("serverchan", False, f"HTTP {status}: {text[:160]}")
@@ -52,7 +52,7 @@ def push_pushplus(token: str, title: str, body: str) -> dict:
             url, data=data, headers={"Content-Type": "application/json"}, method="POST"
         )
     except FetchError as exc:
-        return _result("pushplus", False, str(exc))
+        return _result("pushplus", False, str(exc).replace(token, "[REDACTED]"))
     text = raw.decode("utf-8", errors="replace")
     if status != 200:
         return _result("pushplus", False, f"HTTP {status}: {text[:160]}")
@@ -75,7 +75,7 @@ def push_bark(server: str, key: str, title: str, body: str, sound: str = "bird")
             url, data=data, headers={"Content-Type": "application/json"}, method="POST"
         )
     except FetchError as exc:
-        return _result("bark", False, str(exc))
+        return _result("bark", False, str(exc).replace(key, "[REDACTED]"))
     text = raw.decode("utf-8", errors="replace")
     if status != 200:
         return _result("bark", False, f"HTTP {status}: {text[:160]}")
@@ -131,6 +131,11 @@ def dispatch(cfg: dict, title: str, body: str, log) -> list[dict]:
             _unconfigured("bark", "key")
 
     for result in results:
+        for channel in channels.values():
+            for field in ("sendkey", "token", "key"):
+                secret = channel.get(field)
+                if secret:
+                    result["detail"] = result["detail"].replace(secret, "[REDACTED]")
         if result["ok"]:
             log.info("push %-12s OK   %s", result["channel"], result["detail"])
         else:

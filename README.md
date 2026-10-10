@@ -1,4 +1,84 @@
-# 大气环境文献日报（journal-alert）
+# NAND Flash / SSD 期刊与会议论文日报（journal-alert）
+
+当前配置监控 NAND 器件与 SSD 系统，新增会议监控说明见下面。后文大气环境期刊的历史实测和运维记录保留供参考，不代表当前配置的数据覆盖。
+
+## 会议监控（2026-10 新增）
+
+`config.json` 已启用 FAST、USENIX ATC、OSDI、SOSP、ISCA、MICRO、HPCA、IEDM、IRPS、VLSI Symposium。所有会议及别名、DBLP stream 都在 `conferences.venues` 中配置；采集代码不内置会议名称。FAST、IEDM、IRPS 优先级为 5，其余为 4。优先级仅在相关性得分相同时排序，不增加得分。
+
+原有期刊、NAND/SSD 关键词、阈值、三个微信渠道与每天北京时间 07:30 的定时任务保留。依赖仍是 Python 3.10+ 标准库，无需 pip。旧配置不包含 `conferences` 时默认关闭；设置 `conferences.enabled=false` 可只运行期刊管线。
+
+### 配置与操作
+
+| 配置 | 默认/当前值 | 含义 |
+|---|---|---|
+| `enabled` | 当前 true；旧配置默认 false | 开关 |
+| `sources` | dblp, openalex, crossref | 会议数据源；与期刊的 `window.sources` 分开 |
+| `lookback_days` | 30 | Crossref 索引更新回溯天数，不是会议发表日期过滤 |
+| `initial_lookback_days` | 365 | 每个会议/来源首次成功扫描的历史推荐窗口 |
+| `initial_max_items` | 10 | 每次运行首次回溯会议最多展示的篇数；0 表示仅建基线 |
+| `rescan_years` | 3 | DBLP/OpenAlex 扫描本年及之前 3 年，捕获去年才补录的论文 |
+| `page_size` / `max_pages` | 100 / 8 | 每个年度 DBLP 查询、每个 Crossref 论文集、每个 OpenAlex 来源的分页限制 |
+| `timeout_seconds` / `retries` | 20 / 1 | 每次请求超时与额外重试次数 |
+| `request_interval_seconds` | 1 | 会议请求最小间隔，串行执行 |
+| `max_run_seconds` | 600 | 会议请求总时间预算，正在执行的请求结束后生效 |
+| `cache_hours` | 12 | SQLite 元数据缓存有效期，过期记录定期清理 |
+| `enrichment_limit` | 30 | 每轮最多补全的 DOI 数，优先补相关标题 |
+| `balance_directions` | 默认 true | 在已达分数门槛的会议论文中交替选 NAND/SSD 方向；不补无关论文 |
+| `contextual_keywords` | 配置内的补充词组 | 仅会议使用，短词需要 NAND/SSD/Flash/NVMe/ZNS 上下文；取原评分与补充评分较高值，不重复加分 |
+
+添加会议：在 `venues` 增加 `name`、`enabled`、`priority`、`aliases`、`query`、`dblp_streams`。别名须为实际元数据中的完整会议名或确切缩写，不能填宽泛主题词。删除或设 `enabled=false` 可停用。`openalex_source_ids` 可指定人工核实的会议来源 ID；`crossref_container_titles` 可指定完整、精确的年度论文集标题，避免自动发现的覆盖局限。FAST、MICRO 等缩写仅与来源字段完整匹配，不用于在论文标题中判断会议归属。DBLP 还校验记录 key 必须属于配置的 stream，并排除不匹配的 workshop。
+
+```powershell
+# 离线测试，不联网、不推送，使用临时数据库
+python -m unittest discover -s tests -v
+
+# 试运行：读取已有去重历史，只在内存更新状态；不写日报，不推送（仍写诊断日志）
+python run.py --dry-run --print
+
+# 正式运行：期刊 + 会议，按原配置推送
+python run.py --once
+
+# 数据源诊断，不更新发现记录/历史状态
+python run.py --check --sources dblp,openalex,crossref
+
+# 独立真实 API 探测：内存数据库，无通知
+python tools/probe_conferences.py
+```
+
+`--sources` 同时限制期刊和会议来源，`--sources rss` 不请求会议 API。`--days` 继续只覆盖期刊发表时间窗；会议窗口在 `conferences` 下调整。修改运行频率请改 `.github/workflows/daily.yml` 的 UTC cron；修改回溯长度不改变任务频率。
+
+### 首次发现、日期与重复推送
+
+新增 `Item` 字段包括 `paper_type`、`venue`、`year`、`first_seen`、`priority`；JSON 还提供 `published_date`（与旧 `date` 一致）。不修改旧的 articles/runs 表结构，在同一个 `state/seen.sqlite` 增加 observations、conference_scans、metadata_cache 表，因此既有历史可继续使用。
+
+DOI 去掉 URL 前缀、统一大小写后跨数据源去重。无 DOI 时使用标准化标题 + 标准会议名称 + 年份；两个非空且不同的 DOI 不合并，期刊扩展版也不会仅凭同标题合并。发现后记录身份关联，因此无 DOI 记录后来补上 DOI 不会再次推送。没有可验证年份且没有 DOI 的记录会报错，不生成虚构身份。
+
+DBLP 年份不会转换为 1 月 1 日。Crossref 只有年月或年份时，会议论文的具体日期留空；OpenAlex 日期按其原始元数据使用，它未必是官网首次公开日期。报告显示“日期未知”。首次回溯中只有年份的论文只能按起始年份粗略判断，可能多纳入起始年内的旧论文；之后依靠 first_seen 和历史身份判断新增，不能把旧会议年份直接当成过期。
+
+首次扫描得到的相关历史论文全部进入台账，但只有窗口内且通过 `initial_max_items` 限制的论文进入本次日报和推送候选。超限及窗口外历史会建立静默基线，后续不会逐日重推；**这些静默基线条目不在日报快照中，`--rerender` 不能恢复它们**。普通日报显示仍受 `output.max_entries` 限制，微信受 `push.max_items` 和 `push.max_chars` 限制。默认两个方向交替选取；可用 `balance_directions=false` 恢复纯分数顺序。
+
+沿用原来的“入库后推送”策略：推送失败不自动重试已入库文章，避免同一条消息被反复发送，因此这里提供的是避免重复的策略，**不承诺外部通知的严格 exactly-once 或必达**。数据库丢失、回滚、Actions 写回失败，或本地和云端使用两份状态同时运行，都可能重推。保留并同步 `state/seen.sqlite`，正常操作不要清库。`--no-push` 是正式入库且不推送，预览应使用 `--dry-run`。
+
+### GitHub Actions 启用步骤
+
+1. 将代码、配置、测试及工作流改动提交到仓库默认分支。
+2. 保持 `conferences.enabled=true`，按需调整会议列表；无需新增付费 IEEE 凭据。
+3. 在仓库 Actions 启用 `journal-alert daily`，允许工作流写入仓库（现有 `contents: write` 用于保存状态）。保留原有 SERVERCHAN_SENDKEY / PUSHPLUS_TOKEN / BARK_KEY Secrets；本次实现不修改任何 Secret。
+4. 点击 **Run workflow**，`sources` 留空运行全部默认来源，或填 `dblp,openalex,crossref`。`days` 是期刊窗口。
+5. 查看 `Offline regression tests`、`Run pipeline`、`Commit state and report back` 的结果。确认 `state/seen.sqlite` 成功写回，这是下次去重的必要条件。定时仍为北京时间每天 07:30，保留手动触发与并发排队。
+
+在 `Run pipeline` 日志中查看每会议/来源的记录数及 `summary`（期刊、会议、过滤、历史去重、候选、实际放入消息且有成功渠道的推送篇数、成功渠道数）。API 失败记为 FAILED，零条记录会给出覆盖提示，分页上限和时间预算耗尽会标记未完成，不记成功扫描。诊断日志也上传到 `logs-*` artifact。将 `log.level` 改为 `DEBUG` 可以查看题目低于阈值/排除词的原因和会议来源名称不匹配情况；报告中有命中词、字段和得分。标题权重为摘要的 3 倍；缺少摘要可凭高相关标题入选。
+
+### 覆盖范围与已知限制
+
+- **DBLP**：按 stream + 年份分页，适合计算机会议，也配置了 IEDM、IRPS 和 VLSI 的 stream。依赖实际收录与公开接口可用性；扫描范围外的更老年度不会自动扫描，需要增大 `rescan_years`。来源失败不阻止其他会议。
+- **Crossref**：用于 IEEE 等 DOI 元数据，先搜索并校验论文集名称，再按精确 container-title 与索引更新时间分页。自动发现只检查相关搜索的前 100 条，无法保证找到所有年度/命名变体；重要缺口可配置 `crossref_container_titles`。超过 lookback_days 的停机可能漏掉索引更新，恢复时应扩大窗口。新抓取的旧年记录代表“首次发现”，并不代表刚发表。
+- **OpenAlex**：优先 DOI 补全，支持摘要倒排索引还原。独立采集只接受经验证的会议来源，找不到来源时明确警告；不是所有会议都有稳定 source，名称搜索本身不能证明会议归属。不做模糊同题合并，不依赖付费 IEEE Xplore API。
+- 有界扫描、严格别名和补摘要预算会牺牲部分召回；无摘要且标题不含相关词的论文可能无法入选。达到分页上限会报未完成，需要调整配置。数据库中的缓存不含推送密钥。
+- 数据源元数据自身可能有错：同一论文在无 DOI 时被赋予不同年份/会议名，仍可能形成不同身份，不能保证在无可靠身份信息时完全去重。
+
+接口依据：[DBLP Search API](https://dblp.org/faq/How+to+use+the+dblp+search+API.html)、[Crossref filters](https://www.crossref.org/documentation/retrieve-metadata/rest-api/rest-api-filters/)、[OpenAlex works attributes](https://help.openalex.org/data/works/attributes/)。实际验证结果见 [会议验收记录](docs/conference-validation.md)。
 
 把「期刊定期推送」变成**按关键词筛选后的微信推送 + 本地 Markdown 每日阅读报**，全自动、每天定时运行。
 

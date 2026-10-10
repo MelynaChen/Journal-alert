@@ -52,6 +52,13 @@ class Item:
     abstract: str = ""
     authors: list[str] = field(default_factory=list)
     source: str = ""
+    paper_type: str = "journal"
+    venue: str = ""
+    year: int = 0
+    first_seen: str = ""
+    priority: int = 0
+    initial: bool = False
+    initial_hidden: bool = False
 
     def as_dict(self) -> dict:
         return {
@@ -65,6 +72,13 @@ class Item:
             "abstract": self.abstract,
             "authors": self.authors,
             "source": self.source,
+            "paper_type": self.paper_type,
+            "venue": self.venue,
+            "year": self.year,
+            "first_seen": self.first_seen,
+            "published_date": self.date,
+            "priority": self.priority,
+            "initial": self.initial,
         }
 
 

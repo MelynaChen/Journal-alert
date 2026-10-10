@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import date as _date
 
-from .score import TIER_TITLES, tier_of
+from .score import TIER_TITLES, tier_of, balance_conferences
 
 TIER_ORDER = ["must_read", "worth_reading", "other"]
 
@@ -27,6 +27,12 @@ def _link(item) -> str:
 
 def _doi_link(doi: str) -> str:
     return f"[{doi}](https://doi.org/{doi})" if doi else "—"
+
+
+def venue_label(item):
+    if getattr(item, "paper_type", "journal") == "conference":
+        return f"会议：{item.venue} {item.year or ''}".strip()
+    return f"期刊：{item.journal}"
 
 
 def _truncate(text: str, limit: int) -> str:
@@ -204,7 +210,7 @@ def build_markdown(
             lines.append(f"### {index}. {heading}")
             lines.append("")
             meta = [
-                f"**期刊**：{item.journal}",
+                f"**会议**：{item.venue} {item.year or ''}" if getattr(item, "paper_type", "journal") == "conference" else f"**期刊**：{item.journal}",
                 f"**日期**：{_fmt_date(item.date)}",
             ]
             if item.doi:
@@ -241,6 +247,7 @@ def build_digest(
     matched_total: int,
     max_items: int,
     max_chars: int,
+    stats: dict | None = None,
 ) -> tuple[str, str]:
     """Return ``(title, markdown_body)`` for a push notification.
 
@@ -261,7 +268,10 @@ def build_digest(
 
     blocks: list[str] = []
     shown = 0
-    for entry in (must + rest):
+    ordered = must + rest
+    if cfg.get("conferences", {}).get("balance_directions", True):
+        ordered = balance_conferences(ordered)
+    for entry in ordered:
         if shown >= max_items:
             break
         item = entry["item"]
@@ -272,21 +282,25 @@ def build_digest(
             head = f"{star} [{_truncate(item.title, 120)}]({url})"
         else:
             head = f"{star} {_truncate(item.title, 120)}"
-        meta = f"　　{item.journal} · {item.date} · 匹配 {hits}"
+        meta = f"　　{venue_label(item)} · {item.date or '日期未知'} · {TIER_TITLES[tier_of(entry['scored'].score, cfg.get('tiers', {}))]} · 匹配 {hits}"
+        if getattr(item, "paper_type", "journal") == "conference" and item.authors:
+            meta += " · " + ", ".join(item.authors[:3])
         blocks.append(f"{head}  \n{meta}")
         shown += 1
 
     lines = [f"抓取 {fetched_total} 篇 · 命中 {matched_total} 篇 · 新增 **{len(entries)}** 篇"]
+    shown = 0
+    suffix = "\n\n……（完整内容见本地 Markdown 日报）"
     for block in blocks:
-        lines.append("")
-        lines.append(block)
-    if len(entries) > shown:
-        lines.append("")
-        lines.append(f"…… 其余 {len(entries) - shown} 篇见本地日报。")
-
+        candidate = "\n".join(lines + ["", block])
+        if len(candidate) + len(suffix) > max_chars:
+            break
+        lines.extend(["", block])
+        shown += 1
     body = "\n".join(lines)
-    if len(body) > max_chars:
-        # Cut back to a paragraph boundary so we never truncate mid-entry.
-        cut = body[:max_chars].rsplit("\n\n", 1)[0] or body[:max_chars].rsplit("\n", 1)[0]
-        body = cut + "\n\n……（已截断，完整内容见本地 Markdown 日报）"
+    if len(entries) > shown:
+        body += suffix
+    body = body[:max(0, max_chars)]
+    if stats is not None:
+        stats["items"] = shown
     return title, body

@@ -162,7 +162,7 @@ def _parse_entry(block: str, match: re.Match) -> dict:
 
     abstract = " ".join(q.strip() for q in re.findall(r"^>\s?(.+)$", block, re.MULTILINE)).strip()
 
-    journal = _field(block, "期刊")
+    journal = _field(block, "期刊") or _field(block, "会议")
     return {
         "title": title,
         "url": url,

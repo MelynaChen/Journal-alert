@@ -309,5 +309,201 @@
   "log": {
     "dir": "logs",
     "level": "INFO"
+  },
+  "conferences": {
+    "enabled": true,
+    "sources": [
+      "dblp",
+      "openalex",
+      "crossref"
+    ],
+    "lookback_days": 30,
+    "initial_lookback_days": 365,
+    "initial_max_items": 10,
+    "rescan_years": 3,
+    "page_size": 100,
+    "max_pages": 8,
+    "timeout_seconds": 20,
+    "retries": 1,
+    "request_interval_seconds": 1,
+    "cache_hours": 12,
+    "enrichment_limit": 30,
+    "venues": [
+      {
+        "name": "FAST",
+        "priority": 5,
+        "enabled": true,
+        "dblp_streams": [
+          "conf/fast"
+        ],
+        "aliases": [
+          "FAST",
+          "USENIX Conference on File and Storage Technologies",
+          "File and Storage Technologies"
+        ],
+        "query": "USENIX Conference on File and Storage Technologies"
+      },
+      {
+        "name": "USENIX ATC",
+        "priority": 4,
+        "enabled": true,
+        "dblp_streams": [
+          "conf/usenix"
+        ],
+        "aliases": [
+          "USENIX Annual Technical Conference",
+          "USENIX ATC",
+          "USENIX"
+        ],
+        "query": "USENIX Annual Technical Conference"
+      },
+      {
+        "name": "OSDI",
+        "priority": 4,
+        "enabled": true,
+        "dblp_streams": [
+          "conf/osdi"
+        ],
+        "aliases": [
+          "Operating Systems Design and Implementation",
+          "USENIX Symposium on Operating Systems Design and Implementation",
+          "OSDI"
+        ],
+        "query": "Operating Systems Design and Implementation"
+      },
+      {
+        "name": "SOSP",
+        "priority": 4,
+        "enabled": true,
+        "dblp_streams": [
+          "conf/sosp"
+        ],
+        "aliases": [
+          "Symposium on Operating Systems Principles",
+          "ACM Symposium on Operating Systems Principles",
+          "SOSP"
+        ],
+        "query": "Symposium on Operating Systems Principles"
+      },
+      {
+        "name": "ISCA",
+        "priority": 4,
+        "enabled": true,
+        "dblp_streams": [
+          "conf/isca"
+        ],
+        "aliases": [
+          "International Symposium on Computer Architecture",
+          "ISCA"
+        ],
+        "query": "International Symposium on Computer Architecture"
+      },
+      {
+        "name": "MICRO",
+        "priority": 4,
+        "enabled": true,
+        "dblp_streams": [
+          "conf/micro"
+        ],
+        "aliases": [
+          "IEEE/ACM International Symposium on Microarchitecture",
+          "International Symposium on Microarchitecture",
+          "MICRO"
+        ],
+        "query": "IEEE/ACM International Symposium on Microarchitecture"
+      },
+      {
+        "name": "HPCA",
+        "priority": 4,
+        "enabled": true,
+        "dblp_streams": [
+          "conf/hpca"
+        ],
+        "aliases": [
+          "IEEE International Symposium on High Performance Computer Architecture",
+          "International Symposium on High-Performance Computer Architecture",
+          "HPCA"
+        ],
+        "query": "IEEE International Symposium on High Performance Computer Architecture"
+      },
+      {
+        "name": "IEDM",
+        "priority": 5,
+        "enabled": true,
+        "dblp_streams": [
+          "conf/iedm"
+        ],
+        "aliases": [
+          "IEEE International Electron Devices Meeting",
+          "International Electron Devices Meeting",
+          "IEDM"
+        ],
+        "query": "IEEE International Electron Devices Meeting"
+      },
+      {
+        "name": "IRPS",
+        "priority": 5,
+        "enabled": true,
+        "dblp_streams": [
+          "conf/irps"
+        ],
+        "aliases": [
+          "IEEE International Reliability Physics Symposium",
+          "International Reliability Physics Symposium",
+          "IRPS"
+        ],
+        "query": "IEEE International Reliability Physics Symposium"
+      },
+      {
+        "name": "VLSI Symposium",
+        "priority": 4,
+        "enabled": true,
+        "dblp_streams": [
+          "conf/vlsit",
+          "conf/vlsic"
+        ],
+        "aliases": [
+          "Symposium on VLSI Technology and Circuits",
+          "IEEE Symposium on VLSI Technology and Circuits",
+          "Symposium on VLSI Technology",
+          "Symposium on VLSI Circuits",
+          "VLSI Technology",
+          "VLSI Circuits",
+          "VLSI Technology and Circuits",
+          "VLSIT",
+          "VLSIC"
+        ],
+        "query": "Symposium on VLSI Technology and Circuits"
+      }
+    ],
+    "contextual_keywords": [
+      {
+        "label": "NAND器件与可靠性（会议补充）",
+        "weight": 5,
+        "terms": [
+          "nand",
+          "floating gate",
+          "data retention",
+          "program/erase cycling",
+          "ldpc",
+          "ecc",
+          "read retry"
+        ]
+      },
+      {
+        "label": "SSD系统（会议补充）",
+        "weight": 5,
+        "terms": [
+          "ssd",
+          "ssds",
+          "nvme",
+          "ftl",
+          "garbage collection",
+          "wear leveling",
+          "write amplification"
+        ]
+      }
+    ],
+    "max_run_seconds": 600
   }
 }

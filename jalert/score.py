@@ -44,7 +44,8 @@ class Scored:
 
 
 class Scorer:
-    def __init__(self, keywords: list[dict], exclude_terms: list[str], exclude_doi_prefixes: list[str]):
+    def __init__(self, keywords: list[dict], exclude_terms: list[str], exclude_doi_prefixes: list[str], conference_keywords=None):
+        self.conference_keywords = conference_keywords or []
         self.groups = []
         for entry in keywords:
             label = entry.get("label") or entry.get("term") or "keyword"
@@ -89,6 +90,14 @@ class Scorer:
                 term, field_name, points = hit
                 result.matches.append(Match(label=label, term=term, field_name=field_name, points=points))
                 result.score += points
+        if getattr(item, "paper_type", "journal") == "conference" and self.conference_keywords:
+            # Ambiguous short terms (FTL, ECC, GC) need explicit flash context.
+            anchor = re.search(r"(?<![a-z0-9])(?:nand|ssd|ssds|flash|nvme|zns)(?![a-z0-9])", haystack, re.I)
+            if anchor:
+                extra = Scorer(self.conference_keywords, [], []).score(item)
+                # Supplemental terms fill recall gaps without double counting existing groups.
+                if extra.score > result.score:
+                    result = extra
         return result
 
 
@@ -105,3 +114,22 @@ TIER_TITLES = {
     "worth_reading": "值得一读",
     "other": "其他相关",
 }
+
+
+def balance_conferences(entries):
+    """Alternate qualified device/system recommendations; keep journal positions."""
+    buckets = {"device": [], "system": [], "other": []}
+    for entry in entries:
+        item = entry["item"]
+        if getattr(item, "paper_type", "journal") != "conference":
+            continue
+        text = " ".join(entry["scored"].labels)
+        direction = "system" if "SSD" in text or "FTL" in text else "device" if "NAND" in text else "other"
+        buckets[direction].append(entry)
+    alternating = []
+    while any(buckets.values()):
+        for bucket in buckets.values():
+            if bucket:
+                alternating.append(bucket.pop(0))
+    stream = iter(alternating)
+    return [next(stream) if getattr(e["item"], "paper_type", "journal") == "conference" else e for e in entries]

@@ -27,8 +27,10 @@ from jalert.cards import write_cards  # noqa: E402
 from jalert.config import describe_secret_sources, load_config  # noqa: E402
 from jalert.fetch import collect_items, http_request  # noqa: E402
 from jalert.report import build_digest, build_markdown  # noqa: E402
-from jalert.score import Scorer, tier_of  # noqa: E402
+from jalert.score import Scorer, tier_of, balance_conferences  # noqa: E402
 from jalert.state import Store, last_run_started  # noqa: E402
+from jalert.conferences import collect_conferences
+from jalert.identity import merge_items
 
 TIER_RANK = {"must_read": 0, "worth_reading": 1, "other": 2}
 
@@ -37,6 +39,8 @@ def setup_logging(log_dir: str, level: str) -> logging.Logger:
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger("jalert")
     logger.setLevel(getattr(logging, level.upper(), logging.INFO))
+    for handler in logger.handlers:
+        handler.close()
     logger.handlers.clear()
     stream = logging.StreamHandler(sys.stdout)
     stream.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(message)s", "%H:%M:%S"))
@@ -97,6 +101,7 @@ def sort_entries(entries: list[dict], tiers: dict, today: str = "") -> list[dict
         return (
             TIER_RANK.get(tier_of(entry["scored"].score, tiers), 3),
             -entry["scored"].score,
+            -getattr(item, "priority", 0),
             ordinal,
             item.journal,
         )
@@ -173,6 +178,8 @@ def cap_entries(entries: list[dict], cfg: dict, log) -> tuple[list[dict], int]:
     total = len(entries)
     if cap > 0 and total > cap:
         log.info("report capped to top %d of %d entries (output.max_entries)", cap, total)
+        if cfg.get("conferences", {}).get("balance_directions", True):
+            entries = balance_conferences(entries)
         return entries[:cap], total
     return entries, total
 
@@ -362,6 +369,7 @@ def run(args: argparse.Namespace) -> int:
     if args.sources:
         chosen = {s.strip().lower() for s in args.sources.split(",") if s.strip()}
         cfg["window"]["sources"] = {name: name in chosen for name in ("rss", "openalex", "crossref")}
+        cfg.setdefault("conferences", {})["sources"] = [name for name in ("dblp", "openalex", "crossref") if name in chosen]
 
     log = setup_logging(cfg["log_dir"], cfg.get("log", {}).get("level", "INFO"))
     started = datetime.now().isoformat(timespec="seconds")
@@ -403,6 +411,13 @@ def run(args: argparse.Namespace) -> int:
     window_days = effective_window_days(cfg, log, explicit=args.days)
     cfg["window"]["days"] = window_days
     items, statuses = collect_items(cfg, log, since_days=window_days)
+    journal_count = len(items)
+    with Store(cfg["state_db"], readonly=args.dry_run or args.check) as conference_store:
+        conference_items, conference_statuses = collect_conferences(cfg, conference_store, log)
+    items = merge_items(items + conference_items)
+    statuses.extend(conference_statuses)
+    log.info("fetched journals=%d conferences=%d cross_source_duplicates=%d", journal_count,
+             len(conference_items), journal_count + len(conference_items) - len(items))
     failures = [s for s in statuses if not s["ok"]]
     log.info("fetched %d unique items (%d source calls failed)", len(items), len(failures))
 
@@ -414,6 +429,7 @@ def run(args: argparse.Namespace) -> int:
         cfg.get("keywords", []),
         cfg.get("exclude_terms", []),
         cfg.get("exclude_doi_prefixes", []),
+        cfg.get("conferences", {}).get("contextual_keywords", []),
     )
     min_score = int(tiers.get("min_score", 3))
 
@@ -421,18 +437,30 @@ def run(args: argparse.Namespace) -> int:
     for item in items:
         scored = scorer.score(item)
         if scored.excluded or scored.score < min_score:
+            log.debug("filtered %s: score=%d reason=%s", item.title, scored.score, scored.exclude_term or "below min_score")
             continue
         matched.append({"item": item, "scored": scored})
     log.info("keyword matched %d/%d items (min_score=%d)", len(matched), len(items), min_score)
 
-    with Store(cfg["state_db"]) as store:
-        known = store.known_uids([entry["item"].uid for entry in matched])
+    with Store(cfg["state_db"], readonly=args.dry_run) as store:
+        known = store.observe(items)
         new_entries = [entry for entry in matched if entry["item"].uid not in known]
         for entry in new_entries:
             entry["scored"].tier = tier_of(entry["scored"].score, tiers)
         if not args.dry_run:
             store.save([(e["item"], e["scored"]) for e in new_entries])
-        log.info("new items: %d (已存在 %d)", len(new_entries), len(matched) - len(new_entries))
+            store.complete_scans(conference_statuses)
+        # Baseline excess is deliberately archived without push, never dripped out tomorrow.
+        initial_limit = max(0, int(cfg.get("conferences", {}).get("initial_max_items", 10)))
+        initial_entries = [e for e in sort_entries(new_entries, tiers, day) if e["item"].initial and not e["item"].initial_hidden]
+        if cfg.get("conferences", {}).get("balance_directions", True):
+            initial_entries = balance_conferences(initial_entries)
+        allowed = {e["item"].uid for e in initial_entries[:initial_limit]}
+        suppressed = len(initial_entries) - len(allowed)
+        new_entries = [e for e in new_entries if not e["item"].initial_hidden and (not e["item"].initial or e["item"].uid in allowed)]
+        if suppressed:
+            log.info("initial conference baseline: %d archived without notification", suppressed)
+        log.info("new items: %d (已存在 %d; 首次回溯限量另计)", len(new_entries), len(known))
 
         previous = {} if args.dry_run else load_snapshot(day_snapshot)
         merged_records = list(previous.get("entries", []))
@@ -495,9 +523,11 @@ def run(args: argparse.Namespace) -> int:
                 )
 
         pushed = 0
+        push_items = 0
         if not args.dry_run and not args.no_push and cfg.get("push", {}).get("enabled", False):
             push_cfg = cfg["push"]
             if new_entries or not push_cfg.get("skip_when_empty", True):
+                digest_stats = {}
                 title, body = build_digest(
                     day=day,
                     cfg=cfg,
@@ -506,9 +536,11 @@ def run(args: argparse.Namespace) -> int:
                     matched_total=len(matched),
                     max_items=int(push_cfg.get("max_items", 6)),
                     max_chars=int(push_cfg.get("max_chars", 1800)),
+                    stats=digest_stats,
                 )
                 results = push_module.dispatch(cfg, title, body, log)
                 pushed = sum(1 for r in results if r["ok"])
+                push_items = digest_stats.get("items", 0) if pushed else 0
                 log.info("push results: %s", json.dumps(results, ensure_ascii=False))
             else:
                 log.info("no new items; push skipped (skip_when_empty=true)")
@@ -523,6 +555,9 @@ def run(args: argparse.Namespace) -> int:
                 report_path=str(report_path),
                 note=f"{len(failures)} source failure(s)",
             )
+        log.info("summary journals=%d conferences=%d filtered=%d deduplicated=%d selected=%d pushed_items=%d push_channels_ok=%d",
+                 journal_count, len(conference_items), len(items) - len(matched), len(known), len(new_entries), push_items, pushed)
+        if not args.dry_run:
             prune_reports(reports_dir, int(cfg.get("output", {}).get("keep_days", 365)), log)
             # Rebuilt after pruning so the page matches what the archive holds.
             # Wrapped because the report is the deliverable and the page is a
@@ -568,7 +603,7 @@ def main(argv: list[str] | None = None) -> int:
         help="send one test message through the configured channels, then exit",
     )
     parser.add_argument("--days", type=int, help="override the lookback window in days")
-    parser.add_argument("--sources", help="comma list: rss,openalex,crossref")
+    parser.add_argument("--sources", help="comma list: rss,dblp,openalex,crossref (journals and conferences)")
     parser.add_argument("--date", help="report date label (YYYY-MM-DD), defaults to today")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):

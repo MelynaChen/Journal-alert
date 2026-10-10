@@ -38,6 +38,7 @@ OPTIONAL_ENV: dict[str, tuple[str, str]] = {
 }
 
 DEFAULTS: dict = {
+    "conferences": {"enabled": False},
     "project": {"name": "Journal Alert", "timezone": "Asia/Shanghai"},
     "window": {
         "days": 3,
